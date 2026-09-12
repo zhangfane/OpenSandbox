@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.tsbuildinfo
+src/api/*.gen.ts
+src/api/*.gen.json

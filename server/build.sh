@@ -15,6 +15,10 @@
 
 set -ex
 
+CONSOLE_SOURCE="$(cd "$(dirname "$0")/../console" && pwd)"
+pnpm --dir "$CONSOLE_SOURCE" install --frozen-lockfile
+pnpm --dir "$CONSOLE_SOURCE" build:server
+
 TAG=${TAG:-latest}
 GHCR_REPO=${GHCR_REPO:-}
 BUILD_METADATA_FILE=${BUILD_METADATA_FILE:-build/server-image-metadata.json}

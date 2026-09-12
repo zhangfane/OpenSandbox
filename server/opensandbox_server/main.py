@@ -31,6 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp
 
+from opensandbox_server.console import router as console_router
 from opensandbox_server.config import load_config
 from opensandbox_server.integrations.renew_intent import start_renew_intent_consumer
 from opensandbox_server.logging_config import configure_logging
@@ -245,6 +246,8 @@ app.add_middleware(RequestIdMiddleware)
 # HttpMetricsMiddleware is the outermost user middleware so auth failures and
 # other early responses are included. Unmatched routes use the bounded "unknown" label.
 app.add_middleware(HttpMetricsMiddleware)
+
+app.include_router(console_router)
 
 # Include API routes at root and versioned prefix.
 # IMPORTANT: non-proxy routers MUST be registered before proxy_router

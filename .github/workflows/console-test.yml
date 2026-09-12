@@ -1,0 +1,30 @@
+name: Console
+on:
+  pull_request:
+    paths:
+      - 'console/**'
+      - 'specs/sandbox-lifecycle.yml'
+      - 'specs/diagnostic-api.yml'
+      - 'server/opensandbox_server/console.py'
+      - '.github/workflows/console-test.yml'
+  push:
+    branches: [main]
+    paths: ['console/**', 'specs/**']
+permissions:
+  contents: read
+jobs:
+  console:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - run: pnpm --dir console install --frozen-lockfile
+      - run: pnpm --dir console lint
+      - run: pnpm --dir console typecheck
+      - run: pnpm --dir console test
+      - run: pnpm --dir console build:server

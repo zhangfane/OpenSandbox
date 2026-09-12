@@ -76,6 +76,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return self.tenant_provider is not None
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        if request.url.path == "/console" or request.url.path.startswith("/console/"):
+            return await call_next(request)
+
         if any(request.url.path.startswith(path) for path in self.EXEMPT_PATHS):
             return await call_next(request)
 

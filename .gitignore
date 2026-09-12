@@ -290,3 +290,6 @@ obj/
 
 .qoder/
 /.vs
+
+# Built Console assets staged for server distribution
+server/opensandbox_server/static/console/

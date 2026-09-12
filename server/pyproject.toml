@@ -82,6 +82,7 @@ git_describe_command = 'git describe --dirty --tags --long --match "server/v*"'
 fallback_version = "0.1.0.dev0"
 
 [tool.hatch.build]
+artifacts = ["opensandbox_server/static/console/**"]
 include = [
     "LICENSE",
     "opensandbox_server",

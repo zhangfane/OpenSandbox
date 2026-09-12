@@ -39,6 +39,8 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY opensandbox_server ./opensandbox_server
+# Stage with console build:server before invoking Docker directly.
+RUN test -f opensandbox_server/static/console/index.html
 COPY LICENSE README.md ./
 
 # Install the project itself into the venv (deps already synced)
