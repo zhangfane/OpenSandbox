@@ -64,7 +64,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     <Context.Provider
       value={{
         api: connection?.api || null,
-        base: connection?.base || "/v1",
+        base: connection?.base || "http://127.0.0.1:8080/v1",
         connect,
         disconnect,
       }}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useApi } from "../session";
 import {
   allowed,
@@ -20,6 +21,11 @@ import { Heading, Failure } from "../components/common";
 import { FieldGroup } from "../components/ui/field";
 import { Button } from "../components/ui/button";
 const steps = ["启动来源", "运行配置", "存储与网络", "生命周期", "确认"];
+const stepInfo: Record<number, { title: string; desc: string }> = {
+  1: { title: "运行配置", desc: "配置沙箱的计算资源、运行参数和环境变量" },
+  2: { title: "存储与网络", desc: "配置存储卷挂载和网络访问策略" },
+  3: { title: "生命周期", desc: "配置生命周期钩子和扩展参数" },
+};
 export function CreatePage({ template = false }: { template?: boolean }) {
   const [params] = useSearchParams();
   const initialMode: Mode = params.has("snapshotId")
@@ -116,7 +122,12 @@ export function CreatePage({ template = false }: { template?: boolean }) {
       {!template && (
         <ol className="steps">
           {steps.map((s, i) => (
-            <li key={s} className={i === step ? "active" : ""}>
+            <li
+              key={s}
+              className={
+                i === step ? "active" : i < step ? "done" : ""
+              }
+            >
               <span>{i + 1}</span>
               {s}
             </li>
@@ -156,54 +167,66 @@ export function CreatePage({ template = false }: { template?: boolean }) {
             />
           )}
           {step < 4 || template ? (
-            <FieldGroup
-              className="creation-fields"
+            <section
+              className={!template && step > 0 ? "form-section" : ""}
               key={`${mode}-${revision}-${step}`}
             >
-              {fields.map((name) => (
-                <Controller
-                  key={name}
-                  name={name}
-                  control={form.control}
-                  render={({ field }) => (
-                    <SchemaField
-                      name={name}
-                      schema={
-                        mode === "pool" && step === 0
-                          ? {
-                              type: "object",
-                              properties: {
-                                poolRef: { type: "string", minLength: 1 },
-                              },
-                              required: ["poolRef"],
-                            }
-                          : schema.properties![name]
-                      }
-                      value={field.value}
-                      required={
-                        template
-                          ? schema.required?.includes(name)
-                          : ["image", "snapshotId", "templateId"].includes(
-                              name,
-                            ) ||
-                            (name === "extensions" && mode === "pool") ||
-                            (name === "timeout" && mode === "template") ||
-                            (name === "resourceLimits" &&
-                              ["image", "snapshot"].includes(mode)) ||
-                            (name === "entrypoint" && mode === "image")
-                      }
-                      onChange={(value) => {
-                        if (value === undefined) {
-                          const body = form.getValues();
-                          delete body[name];
-                          form.reset(body);
-                        } else field.onChange(value);
-                      }}
-                    />
-                  )}
-                />
-              ))}
-            </FieldGroup>
+              {!template && stepInfo[step] && (
+                <>
+                  <div className="step-section-title">
+                    {stepInfo[step].title}
+                  </div>
+                  <div className="step-section-desc">
+                    {stepInfo[step].desc}
+                  </div>
+                </>
+              )}
+              <FieldGroup className="creation-fields">
+                {fields.map((name) => (
+                  <Controller
+                    key={name}
+                    name={name}
+                    control={form.control}
+                    render={({ field }) => (
+                      <SchemaField
+                        name={name}
+                        schema={
+                          mode === "pool" && step === 0
+                            ? {
+                                type: "object",
+                                properties: {
+                                  poolRef: { type: "string", minLength: 1 },
+                                },
+                                required: ["poolRef"],
+                              }
+                            : schema.properties![name]
+                        }
+                        value={field.value}
+                        required={
+                          template
+                            ? schema.required?.includes(name)
+                            : ["image", "snapshotId", "templateId"].includes(
+                                name,
+                              ) ||
+                              (name === "extensions" && mode === "pool") ||
+                              (name === "timeout" && mode === "template") ||
+                              (name === "resourceLimits" &&
+                                ["image", "snapshot"].includes(mode)) ||
+                              (name === "entrypoint" && mode === "image")
+                        }
+                        onChange={(value) => {
+                          if (value === undefined) {
+                            const body = form.getValues();
+                            delete body[name];
+                            form.reset(body);
+                          } else field.onChange(value);
+                        }}
+                      />
+                    )}
+                  />
+                ))}
+              </FieldGroup>
+            </section>
           ) : (
             <section className="form-section">
               <h2>确认创建配置</h2>
@@ -220,16 +243,10 @@ export function CreatePage({ template = false }: { template?: boolean }) {
                   setError(null);
                 }}
               >
+                <ChevronLeft data-icon="inline-start" />
                 上一步
               </Button>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => nav(template ? "/templates" : "/sandboxes")}
-            >
-              取消
-            </Button>
             <Button type="submit">
               {mutation.isPending
                 ? "提交中…"
@@ -238,6 +255,9 @@ export function CreatePage({ template = false }: { template?: boolean }) {
                   : step === 4
                     ? "确认创建"
                     : "下一步"}
+              {!mutation.isPending && !template && step < 4 && (
+                <ChevronRight data-icon="inline-end" />
+              )}
             </Button>
           </div>
         </fieldset>

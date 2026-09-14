@@ -75,7 +75,7 @@ function Connection() {
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               required
-              placeholder="/v1"
+              placeholder="http://127.0.0.1:8080/v1"
             />
             <FieldDescription>默认连接当前 Server 的 /v1。</FieldDescription>
           </Field>

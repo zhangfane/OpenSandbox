@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Checkbox } from "./ui/checkbox";
@@ -25,7 +25,7 @@ export const labels: Record<string, string> = {
   timeout: "存活时间（秒）",
   resourceLimits: "资源限制",
   resourceRequests: "资源请求",
-  entrypoint: "启动命令（逐项填写参数）",
+  entrypoint: "启动命令",
   env: "环境变量",
   metadata: "元数据",
   platform: "运行平台",
@@ -78,6 +78,23 @@ export const labels: Record<string, string> = {
   probe: "探针",
   warmupSeconds: "预热时间（秒）",
 };
+const descriptions: Record<string, string> = {
+  uri: "包含镜像仓库的完整地址",
+  name: "仅支持小写字母、数字和连字符",
+  cpu: "如 500m 或 1",
+  memory: "如 512Mi 或 1Gi",
+  gpu: "如 1",
+  disk: "如 2Gi",
+  timeout: "沙箱的运行时长，单位为秒",
+  entrypoint: "按顺序执行的启动命令参数",
+  env: "键值对格式的环境变量",
+  mountPath: "容器内的目录路径",
+  schedule: "标准 Cron 表达式",
+  defaultAction: "未匹配规则时的默认行为",
+};
+const PRESET_IMAGES: { label: string; uri: string }[] = [
+  { label: "Code Interpreter", uri: "opensandbox/code-interpreter:latest" },
+];
 export function Choice({
   value,
   onChange,
@@ -144,6 +161,13 @@ export function Dictionary({
   }
   return (
     <FieldGroup>
+      {rows.length > 0 && (
+        <div className="kv-header">
+          <span>键</span>
+          <span>值</span>
+          <span />
+        </div>
+      )}
       {rows.map((row, i) => (
         <div className="kv-row" key={row.id}>
           <Input
@@ -263,6 +287,9 @@ export function SchemaField({
           默认 3600 秒；移除表示手动清理，是否支持由运行时决定。
         </FieldDescription>
       )}
+      {name !== "timeout" && descriptions[name] && (
+        <FieldDescription>{descriptions[name]}</FieldDescription>
+      )}
       {enabled &&
         (object ? (
           schema.properties ? (
@@ -338,29 +365,45 @@ export function SchemaField({
             </label>
           </div>
         ) : (
-          <Input
-            id={id}
-            aria-label={title}
-            type={
-              secret
-                ? "password"
-                : schema.type === "integer" || schema.type === "number"
-                  ? "number"
-                  : "text"
-            }
-            min={schema.minimum}
-            max={schema.maximum}
-            value={String(value ?? "")}
-            onChange={(e) =>
-              onChange(
-                schema.type === "integer" || schema.type === "number"
-                  ? e.target.value === ""
-                    ? undefined
-                    : Number(e.target.value)
-                  : e.target.value,
-              )
-            }
-          />
+          <>
+            <Input
+              id={id}
+              aria-label={title}
+              type={
+                secret
+                  ? "password"
+                  : schema.type === "integer" || schema.type === "number"
+                    ? "number"
+                    : "text"
+              }
+              min={schema.minimum}
+              max={schema.maximum}
+              value={String(value ?? "")}
+              onChange={(e) =>
+                onChange(
+                  schema.type === "integer" || schema.type === "number"
+                    ? e.target.value === ""
+                      ? undefined
+                      : Number(e.target.value)
+                    : e.target.value,
+                )
+              }
+            />
+            {name === "uri" && (
+              <div className="preset-images">
+                {PRESET_IMAGES.map((img) => (
+                  <button
+                    key={img.uri}
+                    type="button"
+                    className={`preset-tag${String(value) === img.uri ? " active" : ""}`}
+                    onClick={() => onChange(img.uri)}
+                  >
+                    {img.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         ))}
     </Field>
   );
@@ -376,6 +419,31 @@ function ArrayField({
   value: unknown[];
   onChange: (v: unknown) => void;
 }) {
+  const isTag = name === "entrypoint" || (schema.type === "string" && !schema.properties);
+  if (isTag && (!schema.properties)) {
+    return (
+      <FieldGroup>
+        <div className="tag-list">
+          {value.map((item, i) => (
+            <span className="tag-item" key={i}>
+              {String(item)}
+              <button
+                type="button"
+                aria-label={`删除 ${labels[name] || name} ${i + 1}`}
+                onClick={() => onChange(value.filter((_, j) => j !== i))}
+              >
+                <X size={14} />
+              </button>
+            </span>
+          ))}
+        </div>
+        <TagInput
+          placeholder={`添加${labels[name] || name}`}
+          onAdd={(v) => onChange([...value, v])}
+        />
+      </FieldGroup>
+    );
+  }
   return (
     <FieldGroup>
       {value.map((item, i) => (
@@ -412,6 +480,44 @@ function ArrayField({
         添加{labels[name] || name}
       </Button>
     </FieldGroup>
+  );
+}
+function TagInput({
+  placeholder,
+  onAdd,
+}: {
+  placeholder: string;
+  onAdd: (v: string) => void;
+}) {
+  const [val, setVal] = useState("");
+  return (
+    <div className="flex gap-2">
+      <Input
+        placeholder={placeholder}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && val.trim()) {
+            e.preventDefault();
+            onAdd(val.trim());
+            setVal("");
+          }
+        }}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => {
+          if (val.trim()) {
+            onAdd(val.trim());
+            setVal("");
+          }
+        }}
+      >
+        <Plus data-icon="inline-start" />
+        添加命令
+      </Button>
+    </div>
   );
 }
 export function Review({ value }: { value: Values }) {
