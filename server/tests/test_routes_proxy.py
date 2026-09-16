@@ -1408,3 +1408,50 @@ def test_proxy_active_credential_vault_returns_sidecar_forbidden(
     assert response.content == b"forbidden\n"
     assert fake_client.built is not None
     assert fake_client.built["url"] == "http://10.57.1.91:18080/credential-vault/_active"
+
+
+def test_networkpolicy_route_forwards_egress_auth_header(
+    client: TestClient,
+    auth_headers: dict,
+    monkeypatch,
+) -> None:
+    class StubService:
+        @staticmethod
+        def get_endpoint(sandbox_id: str, port: int, resolve_internal: bool = False, use_proxy_host: bool = False) -> Endpoint:
+            assert port == 18080
+            return Endpoint(
+                endpoint="10.57.1.91:18080",
+                headers={OPEN_SANDBOX_EGRESS_AUTH_HEADER: "injected-egress-token"},
+            )
+
+    monkeypatch.setattr(lifecycle, "sandbox_service", StubService())
+
+    fake_client = _FakeAsyncClient()
+    fake_client.response = _FakeStreamingResponse(
+        status_code=200,
+        headers={"content-type": "application/json"},
+        chunks=[b'{"status":"ok"}'],
+    )
+    _set_http_client(client, fake_client)
+
+    response = client.get(
+        "/v1/sandboxes/sbx-123/networkpolicy",
+        headers={
+            **auth_headers,
+            OPEN_SANDBOX_EGRESS_AUTH_HEADER.lower(): "caller-fake-token",
+        },
+    )
+
+    assert response.status_code == 200
+    assert fake_client.built is not None
+    assert fake_client.built["url"] == "http://10.57.1.91:18080/policy"
+    # Ensure caller-supplied header was completely replaced and does not duplicate
+    egress_headers = [
+        (k, v)
+        for k, v in fake_client.built["headers"].items()
+        if k.lower() == OPEN_SANDBOX_EGRESS_AUTH_HEADER.lower()
+    ]
+    assert len(egress_headers) == 1
+    assert egress_headers[0][1] == "injected-egress-token"
+
+
