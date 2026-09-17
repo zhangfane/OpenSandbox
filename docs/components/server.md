@@ -34,6 +34,19 @@ A production-grade, FastAPI-based service for managing the lifecycle of containe
 Metadata keys under the reserved prefix `opensandbox.io/` are system-managed and cannot be supplied by users.
 :::
 
+## Docker deletion
+
+Deletion synchronously removes the application, stops and removes its egress
+sidecar, then cleans up volumes. Docker allows 9 seconds for
+[egress shutdown](/components/egress#shutdown) before forced termination;
+the full deletion request can take longer.
+
+If application removal fails, dependent resources and metadata are kept for
+retry. TTL cleanup retries after 30 seconds without changing the expiration.
+If the application is already absent, DELETE and TTL attempt orphan sidecar
+cleanup; DELETE returns 404. Sidecar cleanup is best effort, so 404 does not
+guarantee that all resources are gone.
+
 ## Requirements
 
 - **Python**: 3.10 or higher
@@ -102,7 +115,10 @@ Content-Type: application/json
 ```
 
 GET on the same path reads the persisted policy. PUT replaces the complete
-policy; it does not merge rules. Unrelated action bindings retain their values
+policy; it does not merge rules. `PATCH` merges rules with the same semantics
+as the egress sidecar (incoming same-target rules replace in place, first rule
+per target in the payload wins, defaultAction preserved), and `DELETE` removes
+rules by target (idempotent). Unrelated action bindings retain their values
 and order. Concurrent writes are protected by Sandbox UID/generation fences
 and return `409` on conflict. Other tenants' sandboxes return `404`.
 
@@ -271,6 +287,9 @@ Response:
 **Resource limits**: The request above limits the sandbox to 0.5 CPU cores (`500m`) and 512 MiB of memory (`512Mi`). With the Docker runtime, invalid CPU or memory limits return HTTP 400 (`INVALID_PARAMETER`).
 
 **Other lifecycle calls** (same `OPEN-SANDBOX-API-KEY` header): `GET /v1/sandboxes/{id}`, `POST /v1/sandboxes/{id}/pause`, `POST /v1/sandboxes/{id}/resume`, `GET /v1/sandboxes/{id}/endpoints/{port}` (append `?use_server_proxy=true` when needed), `POST .../renew-expiration`, `DELETE /v1/sandboxes/{id}`. Full request/response shapes: **Swagger UI** above or OpenAPI under [specs/](/api/).
+
+Server-proxied HTTP responses preserve repeated response headers, including each
+`Set-Cookie` field, without combining their values. Hop-by-hop headers are filtered.
 
 When a server-proxied HTTP route cannot connect to the selected sandbox backend,
 the server returns HTTP `502` with error code `BACKEND_CONNECTION_FAILED`. Use the

@@ -293,3 +293,7 @@ obj/
 
 # Built Console assets staged for server distribution
 server/opensandbox_server/static/console/
+
+# fast-sandbox pinned source checkout (materialized by
+# manifests/release/build-fast-sandbox.sh from manifests/third-party/fast-sandbox.commit)
+.fast-sandbox/

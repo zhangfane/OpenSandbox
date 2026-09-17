@@ -82,6 +82,19 @@ Most deployments only need these settings:
   - `OPENSANDBOX_EGRESS_TOKEN` (optional auth via `OPENSANDBOX-EGRESS-AUTH`)
 - **Rule limit**:
   - `OPENSANDBOX_EGRESS_MAX_RULES` for `POST/PATCH /policy` (default `4096`, `0` disables cap)
+- **Redirect backend**: `OPENSANDBOX_EGRESS_REDIRECT_BACKEND` — how the OUTPUT redirects (DNS → the
+  proxy, HTTP/HTTPS → the transparent mitmproxy) are installed: `auto` (default: iptables first,
+  native nft rules when iptables' nft backend cannot load an xtables extension such as `owner` or
+  the IPv6 `REDIRECT` target), `nft` (native nft from the start, both address families), or
+  `iptables` (never fall back). Firecracker-style guest kernels (Fly.io Machines and similar
+  microVM hosts) ship nf_tables without `CONFIG_NETFILTER_XT_MATCH_OWNER`: use `nft` there.
+- **IPv6-only transport**: the `dns+nft` policy chain accepts ICMPv6 neighbor discovery (a host
+  whose default route is a link-local IPv6 gateway would otherwise lose its neighbor entry and
+  become unreachable once the cache goes stale), the DNS proxy also listens on `[::1]:15353`
+  so a `resolv.conf` naming an IPv6 resolver is proxied after the ip6 OUTPUT redirect, and the
+  transparent mitmproxy listens on `[::1]:18081` next to `127.0.0.1:18081` so IPv6 destinations
+  are intercepted too (the ip6 REDIRECT lands on `::1`, which `oifname "lo"` does not match —
+  the policy chain accepts `ip6 daddr ::1`).
 
 Optional advanced features:
 
@@ -179,7 +192,7 @@ On extra ports, mitmproxy still decrypts and logs traffic normally, but the Cred
 
 ::: warning Known issue: large SSE chunks truncated
 mitmproxy can truncate the tail of large streamed bodies (e.g. LLM SSE events > ~1 MB) when the upstream serves over TLS HTTP/1.1 and closes the connection right after the body. See [Egress: SSE Truncation (mitmproxy)](/components/egress-mitmproxy-sse-truncation) for root cause, reproduction, and status.
-::: 
+:::
 
 ### Credential Vault
 
@@ -500,8 +513,14 @@ ENTRYPOINT: supervisor --pre-start=cleanup.sh --name=egress --grace-period=20s -
 
 Egress-specific configuration:
 
-- **`--grace-period=20s`**: Egress needs extra time to drain DNS connections and tear down iptables/nft rules on shutdown (default is 10 s).
+- **`--grace-period=20s`**: Maximum time for worker shutdown before the supervisor sends SIGKILL. The container runtime may enforce a shorter deadline.
 - **Pre-start hook** (`cleanup.sh`): Reaps orphaned `mitmdump` processes from a previous crash and removes stale DNS redirect iptables/native nft state that would otherwise point port 53 at a dead proxy. It does not manage the `inet opensandbox` policy table; the nftables manager deletes and recreates that table when policy enforcement starts.
+
+### Shutdown
+
+On SIGTERM, egress stops accepting webhook events and allows queued and in-flight deliveries up to 5 seconds to finish, keeping DNS and network rules available.
+It then shuts down listeners, removes network rules, and flushes telemetry.
+Delivery is best effort; timeouts or forced termination can drop events and interrupt cleanup. See [Docker deletion](/components/server#docker-deletion) for the Docker stop budget.
 
 ## Troubleshooting
 

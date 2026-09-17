@@ -453,6 +453,18 @@ installs the whole candidate snapshot atomically. An API response may report a
 new vault revision only after the proxy acknowledges that exact snapshot and
 any required connection fence has been installed.
 
+The local transaction wire splits this conceptual object at the only
+non-circular boundary. Its established revision envelope has six fields:
+`controlGeneration` (the wire name for conceptual
+`controlPlaneGeneration`), `subjectGeneration`, the coordinator-allocated
+`decisionEpoch`, `vaultRevision`, `policyEpoch`, and `digest` of the exact
+payload bytes. The versioned canonical payload carries `vaultRevision`,
+`effectivePolicyEpoch`, `interceptionMode`, `state`,
+`tlsBindingHostSelectors`, `fullRenderedBindings`, and `redactions`. Payload
+`vaultRevision` must equal envelope `vaultRevision`; payload
+`effectivePolicyEpoch` is the semantic alias of and must equal envelope
+`policyEpoch`. Together the envelope and payload form the complete snapshot.
+
 An installed snapshot has no data TTL. It remains authoritative until it is
 explicitly replaced, the subject generation changes, the proxy process loses
 it, or the owning Go control-plane incarnation disappears. Vault create,
@@ -808,20 +820,44 @@ metadata-only readback or exact commit/abort retries. Its transport is injected;
 an unused Go adapter now implements its strict JSON contract over a
 caller-provisioned private Unix socket, presents a high-entropy per-session
 bearer token for receiver-side authentication, and rejects malformed, oversized,
-or credential-bearing error responses. The Python
-receiver endpoint, live token handoff, and public Vault mutation path are not
-wired yet. Local close cancels pending transport and fences completion, but the
-future adapter must also fence the remote session and tear down
-receiver/connections. Startup/recovery and atomic public-store finalization under
-the shared mutation barrier remain integration work.
+or credential-bearing error responses. A matching unused Python endpoint now
+authenticates the bearer token before reading bounded request bodies, strictly
+decodes the envelope, and exposes only fixed errors and metadata
+acknowledgements. The always-loaded system addon now owns that endpoint only
+when the Go launcher supplies a complete internal per-process session bundle;
+missing configuration keeps it disabled, partial configuration fails startup,
+and addon shutdown fences the receiver and removes its owned socket. The Go
+launcher strips inherited bundle values and can hand off a validated bundle,
+but the current sidecar and fast-sandbox assembly still pass none. An unused Go
+process-session owner now creates a private per-process receiver directory,
+high-entropy control generation and token, matching launcher bundle, Unix
+transport, and coordinator. It accepts readiness only from an authenticated
+fresh receiver with no active revision. Directory operations stay anchored to a
+caller-owned stable non-writable parent, verify the child UID/GID and mode, and
+require the target identity to have directory search permission. Cleanup refuses
+a replaced directory identity. Live launch/restart consumption,
+authoritative empty or restored snapshot installation, connection teardown, and
+the public Vault mutation path
+remain unwired. Startup/recovery and atomic public-store finalization under the
+shared mutation barrier remain integration work.
 
-The proxy-side transaction receiver is an in-memory foundation: it validates
+The proxy-side transaction receiver validates
 generation/epoch/digest identities, stages immutable bytes, and implements
-commit, abort, and metadata-only readback. It is not connected to the live addon
-or an IPC endpoint yet. The next integration must supply complete snapshot
-validation, authenticated transport, Go-side reconciliation, and connection
-fences before acknowledging public Vault mutations. Existing request processing
-continues to use the conditional ETag lookup until that integration is ready.
+commit, abort, and metadata-only readback. Its authenticated IPC endpoint is
+conditionally attached to the live addon as described above, but no running
+egress profile supplies a session yet. An unused Go builder now emits
+the versioned canonical decision payload from a rendered Vault snapshot and
+policy epoch. It derives and sorts HTTPS selectors from the same canonical
+bindings, preserves redaction order, and rejects non-canonical revisions,
+selectors, or rendered credential/redaction coverage. A matching unused Python
+validator now strictly decodes those exact bytes, checks envelope vault/policy
+agreement, recomputes active state and HTTPS selectors from the full bindings,
+and rejects incomplete redaction coverage with a fixed sanitized error. The
+next integration must consume a fresh process session during launch/restart,
+install the authoritative empty or restored snapshot before readiness, and add
+connection fences before acknowledging public Vault mutations. Existing request
+processing continues to use the conditional ETag lookup until that integration
+is ready.
 
 Implementation has started with the internal host-selector algebra and shared
 Go/Python conformance vectors. The control plane owns non-transitional UTS #46

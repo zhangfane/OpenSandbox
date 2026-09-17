@@ -125,7 +125,8 @@ pool = SandboxPoolSync(
     state_store=InMemoryPoolStateStore(),  # single-process only
     connection_config=ConnectionConfigSync(domain="api.opensandbox.io"),
     creation_spec=PoolCreationSpec(image="ubuntu:22.04"),
-    reconcile_interval=timedelta(seconds=5),
+    warmup_create_qps=10,
+    warmup_concurrency=128,
 )
 
 pool.start()
@@ -474,6 +475,7 @@ The `ConnectionConfig` class manages API server connection settings.
 | `retry_policy`    | Automatic retry policy for non-streaming requests (see [Automatic retries](#_2-automatic-retries)) | Enabled (`RetryPolicy()`) | -                 |
 | `use_server_proxy` | Use sandbox server as proxy for execd/endpoint requests (e.g. when client cannot reach the sandbox directly) | `False` | -                      |
 | `disable_metrics` | Disable SDK create-latency telemetry (see [SDK Telemetry](/guides/sdk-telemetry)) | `False` | `OPENSANDBOX_DISABLE_METRICS` |
+| `enable_tracing` | Enable OpenTelemetry tracing for pool warmup (see [SDK Tracing](/guides/sdk-tracing)) | `False` | - |
 
 ```python
 from datetime import timedelta
@@ -584,7 +586,7 @@ The `Sandbox.create()` allows configuring the sandbox environment.
 | `metadata`      | Custom metadata tags                     | Empty                           |
 | `network_policy` | Optional outbound network policy (egress) | -                             |
 | `credential_proxy` | Optional Credential Vault proxy startup settings | -                     |
-| `ready_timeout` | Max time to wait for sandbox to be ready | 30 seconds                      |
+| `ready_timeout` | Total budget for endpoint publication and health checks | 30 seconds                      |
 
 ::: warning
 Metadata keys under `opensandbox.io/` are reserved for system-managed labels and will be rejected by the server.
