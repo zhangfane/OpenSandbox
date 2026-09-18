@@ -50,13 +50,13 @@ rules:
   # CRUD powers the /templates management API; SandboxSnapshot
   # watches power fsb snapshot status convergence.
   - apiGroups: ["sandbox.fast.io"]
-    resources: ["sandboxes"]
+    resources: ["sandboxes", "sandboxpools"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["sandbox.fast.io"]
     resources: ["sandboxtemplates"]
     verbs: ["create", "delete", "get", "list", "watch"]
   - apiGroups: ["sandbox.fast.io"]
-    resources: ["sandboxesnapshots"]
+    resources: ["sandboxsnapshots"]
     verbs: ["get", "list", "watch"]
 ---
 apiVersion: {{ include "opensandbox-server.rbac.apiVersion" . }}

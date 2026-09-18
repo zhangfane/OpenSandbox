@@ -26,6 +26,9 @@ build_arg_if_set() {
 TAG=${TAG:-latest}
 COMPONENT=${COMPONENT:-controller}
 PUSH=${PUSH:-true}
+if [[ "$*" == *"--local"* ]] || [[ "${LOCAL:-}" == "1" ]]; then
+    PUSH="false"
+fi
 GHCR_REPO=${GHCR_REPO:-}
 BUILD_METADATA_FILE=${BUILD_METADATA_FILE:-build/${COMPONENT}-image-metadata.json}
 BUILD_ARGS=()
@@ -94,17 +97,17 @@ if [ "$PUSH" == "true" ]; then
     echo "========================================="
 else
     # Build only (for local testing)
-    docker buildx build \
-        --platform linux/amd64 \
+    docker build \
         $BUILD_ARG \
         "${BUILD_ARGS[@]}" \
-        -t ${IMAGE_NAME}:${TAG} \
+        -t "${IMAGE_NAME}:${TAG}" \
+        -t "${DOCKERHUB_REPO}/${IMAGE_NAME}:${TAG}" \
         -f "$DOCKERFILE" \
-        --load \
         .
     
     echo "========================================="
     echo "Successfully built (local only):"
     echo "  ${IMAGE_NAME}:${TAG}"
+    echo "  ${DOCKERHUB_REPO}/${IMAGE_NAME}:${TAG}"
     echo "========================================="
 fi

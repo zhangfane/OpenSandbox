@@ -29,6 +29,20 @@ execd_image = "opensandbox/execd:v1.1.0"
 network_mode = "bridge"
 ```
 
+## Building Docker Image (Frontend + Backend)
+
+To quickly build a local Docker image containing both the frontend Console SPA and the backend server:
+
+```bash
+# From repository root (recommended):
+make image                           # builds opensandbox/server:latest
+make image IMAGE_TAG=my-image:v1     # with custom tag
+
+# Or from server directory:
+./build.sh --local                   # builds opensandbox/server:latest
+TAG=v1.0.0 ./build.sh --local        # with custom tag
+```
+
 ## Testing
 
 Docker daemon required for integration tests.

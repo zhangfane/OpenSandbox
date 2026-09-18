@@ -21,6 +21,24 @@ pnpm --dir "$CONSOLE_SOURCE" build:server
 
 TAG=${TAG:-latest}
 GHCR_REPO=${GHCR_REPO:-}
+
+# Forward the release version into the build when set, so hatch-vcs resolves the
+# real version instead of falling back to fallback_version (0.1.0.dev0) in the
+# .git-less image build. The workflow sets this to the tag without the leading
+# "v" (e.g. 0.2.2). Unset for local/non-release builds -> current behavior.
+BUILD_ARGS=()
+if [[ -n "${SETUPTOOLS_SCM_PRETEND_VERSION:-}" ]]; then
+  BUILD_ARGS+=(--build-arg "SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}")
+fi
+
+if [[ "$*" == *"--local"* ]] || [[ "${LOCAL:-}" == "1" ]] || [[ "${PUSH:-}" == "false" ]]; then
+  LOCAL_TAG="${LOCAL_TAG:-opensandbox/server:${TAG}}"
+  echo "Building local image ${LOCAL_TAG}..."
+  docker build "${BUILD_ARGS[@]}" -t "${LOCAL_TAG}" .
+  echo "Successfully built local image: ${LOCAL_TAG}"
+  exit 0
+fi
+
 BUILD_METADATA_FILE=${BUILD_METADATA_FILE:-build/server-image-metadata.json}
 mkdir -p "$(dirname "${BUILD_METADATA_FILE}")"
 
@@ -42,15 +60,6 @@ if [[ "${TAG}" == v* ]]; then
   if [[ -n "${GHCR_REPO}" ]]; then
     LATEST_TAGS+=(-t "${GHCR_REPO}/server:latest")
   fi
-fi
-
-# Forward the release version into the build when set, so hatch-vcs resolves the
-# real version instead of falling back to fallback_version (0.1.0.dev0) in the
-# .git-less image build. The workflow sets this to the tag without the leading
-# "v" (e.g. 0.2.2). Unset for local/non-release builds -> current behavior.
-BUILD_ARGS=()
-if [[ -n "${SETUPTOOLS_SCM_PRETEND_VERSION:-}" ]]; then
-  BUILD_ARGS+=(--build-arg "SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}")
 fi
 
 docker buildx build \
